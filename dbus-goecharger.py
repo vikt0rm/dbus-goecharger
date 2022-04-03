@@ -31,23 +31,13 @@ class DbusGoeChargerService:
     logging.debug("%s /DeviceInstance = %d" % (servicename, deviceinstance))
     
     paths_wo_unit = [
-      '/Ac/Frequency',
-      '/Status',
-      '/Mode',
-      '/ChargingTime',
-      '/PCB/Temperature',
-      '/MCU/Temperature',
-      '/History/ChargingCycles',
-      '/History/ConnectorCycles',
-      '/History/Ac/Energy/Forward',
-      '/History/Uptime',
-      '/History/ChargingTime',
-      '/History/Alerts',
-      '/History/AverageStartupTemperature',
-      '/History/AbortedChargingCycles',
-      '/History/ThermalFoldbacks'
+      '/Status',  # value 'car' 1: charging station ready, no vehicle 2: vehicle loads 3: Waiting for vehicle 4: Charge finished, vehicle still connected
+      '/Mode'
     ]
     
+    #get data from go-eCharger
+    data = self._getGoeChargerData()
+
     # Create the management objects, as specified in the ccgx dbus-api document
     self._dbusservice.add_path('/Mgmt/ProcessName', __file__)
     self._dbusservice.add_path('/Mgmt/ProcessVersion', 'Unkown version, and running on Python ' + platform.python_version())
@@ -58,8 +48,10 @@ class DbusGoeChargerService:
     self._dbusservice.add_path('/ProductId', 0xFFFF) # 
     self._dbusservice.add_path('/ProductName', productname)
     self._dbusservice.add_path('/CustomName', productname)    
-    self._dbusservice.add_path('/FirmwareVersion', 0.1)
-    self._dbusservice.add_path('/HardwareVersion', 0)
+    self._dbusservice.add_path('/FirmwareVersion', int(data['fwv'].replace('.', '')))
+    self._dbusservice.add_path('/HardwareVersion', 2)
+    self._dbusservice.add_path('/Serial', data['sse'])
+    self._dbusservice.add_path('/ChargingTime', 0)  # not availabel on go-eCharger
     self._dbusservice.add_path('/Connected', 1)
     self._dbusservice.add_path('/UpdateIndex', 0)
     
@@ -84,7 +76,7 @@ class DbusGoeChargerService:
   def _getConfig(self):
     config = configparser.ConfigParser()
     config.read("%s/config.ini" % (os.path.dirname(os.path.realpath(__file__))))
-    return config;
+    return config
  
  
   def _getSignOfLifeInterval(self):
@@ -146,22 +138,32 @@ class DbusGoeChargerService:
        self._dbusservice['/Ac/L2/Power'] = int(data['nrg'][8] * 0.1 * 1000)
        self._dbusservice['/Ac/L3/Power'] = int(data['nrg'][9] * 0.1 * 1000)
        self._dbusservice['/Ac/Power'] = int(data['nrg'][11] * 0.01 * 1000)
-       self._dbusservice['/Ac/Frequency'] = 0
-       self._dbusservice['/Ac/Voltage'] = data['grid_v']
-       self._dbusservice['/Current'] = data['vehicle_current_a']
-       self._dbusservice['/SetCurrent'] = 16  # static for now
+       self._dbusservice['/Ac/Voltage'] = int(data['nrg'][0])
+       self._dbusservice['/Current'] = int(data['amp'])
+       #self._dbusservice['/SetCurrent'] = 16  # static for now
        self._dbusservice['/MaxCurrent'] = 16  # data['vehicle_current_a']
-       # self._dbusservice['/Ac/Energy/Forward'] = float(data['session_energy_wh']) / 1000.0
-       self._dbusservice['/Ac/Energy/Forward'] = float(lt['energy_wh']) / 1000.0
-       self._dbusservice['/ChargingTime'] = data['session_s']
+       self._dbusservice['/Ac/Energy/Forward'] = int(float(data['eto']) / 10.0)
+       #self._dbusservice['/ChargingTime'] = data['session_s']
 
-       self._dbusservice['/Ac/Power'] = self._dbusservice['/Ac/' + pvinverter_phase + '/Power']
-       self._dbusservice['/Ac/Energy/Forward'] = self._dbusservice['/Ac/' + pvinverter_phase + '/Energy/Forward']
-       
+       self._dbusservice['/Mode'] = 0  # Manual, no control
+       self._dbusservice['/MCU/Temperature'] = int(data['tmp'])
+
+       # value 'car' 1: charging station ready, no vehicle 2: vehicle loads 3: Waiting for vehicle 4: Charge finished, vehicle still connected
+       status = 0
+       if int(data['car']) == 1:
+         status = 0
+       elif int(data['car']) == 2:
+         status = 2
+       elif int(data['car']) == 3:
+         status = 6
+       elif int(data['car']) == 4:
+         status = 3
+       self._dbusservice['/Status'] = status
+
        #logging
        logging.debug("Wallbox Consumption (/Ac/Power): %s" % (self._dbusservice['/Ac/Power']))
        logging.debug("Wallbox Forward (/Ac/Energy/Forward): %s" % (self._dbusservice['/Ac/Energy/Forward']))
-       logging.debug("---");
+       logging.debug("---")
        
        # increment UpdateIndex - to show that new data is available
        index = self._dbusservice['/UpdateIndex'] + 1  # increment index
@@ -187,14 +189,14 @@ def main():
   #configure logging
   logging.basicConfig(      format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
                             datefmt='%Y-%m-%d %H:%M:%S',
-                            level=logging.INFO,
+                            level=logging.DEBUG,
                             handlers=[
                                 logging.FileHandler("%s/current.log" % (os.path.dirname(os.path.realpath(__file__)))),
                                 logging.StreamHandler()
                             ])
  
   try:
-      logging.info("Start");
+      logging.info("Start")
   
       from dbus.mainloop.glib import DBusGMainLoop
       # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
@@ -204,12 +206,13 @@ def main():
       _kwh = lambda p, v: (str(round(v, 2)) + 'KWh')
       _a = lambda p, v: (str(round(v, 1)) + 'A')
       _w = lambda p, v: (str(round(v, 1)) + 'W')
-      _v = lambda p, v: (str(round(v, 1)) + 'V')   
+      _v = lambda p, v: (str(round(v, 1)) + 'V')
+      _degC = lambda p, v: (str(v) + '°C')
      
       #start our main-service
       pvac_output = DbusGoeChargerService(
         servicename='com.victronenergy.evcharger',
-        paths=[
+        paths={
           '/Ac/Power': {'initial': 0, 'textformat': _w},
           '/Ac/L1/Power': {'initial': 0, 'textformat': _w},
           '/Ac/L2/Power': {'initial': 0, 'textformat': _w},
@@ -218,28 +221,10 @@ def main():
           
           '/Ac/Voltage': {'initial': 0, 'textformat': _v},
           '/Current': {'initial': 0, 'textformat': _a},
-          '/MaxCurrent': {'initial': 0, 'textformat': _a}
-        ],
-        paths={
-          '/Ac/Energy/Forward': {'initial': 0, 'textformat': _kwh},
-          '/Ac/Power': {'initial': 0, 'textformat': _w},
-          
-          '/Ac/Current': {'initial': 0, 'textformat': _a},
-          '/Ac/Voltage': {'initial': 0, 'textformat': _v},
-          
-          '/Ac/L1/Voltage': {'initial': 0, 'textformat': _v},
-          '/Ac/L2/Voltage': {'initial': 0, 'textformat': _v},
-          '/Ac/L3/Voltage': {'initial': 0, 'textformat': _v},
-          '/Ac/L1/Current': {'initial': 0, 'textformat': _a},
-          '/Ac/L2/Current': {'initial': 0, 'textformat': _a},
-          '/Ac/L3/Current': {'initial': 0, 'textformat': _a},
-          '/Ac/L1/Power': {'initial': 0, 'textformat': _w},
-          '/Ac/L2/Power': {'initial': 0, 'textformat': _w},
-          '/Ac/L3/Power': {'initial': 0, 'textformat': _w},
-          '/Ac/L1/Energy/Forward': {'initial': 0, 'textformat': _kwh},
-          '/Ac/L2/Energy/Forward': {'initial': 0, 'textformat': _kwh},
-          '/Ac/L3/Energy/Forward': {'initial': 0, 'textformat': _kwh},
-        })
+          '/MaxCurrent': {'initial': 0, 'textformat': _a},
+          '/MCU/Temperature': {'initial': 0, 'textformat': _degC}
+        }
+        )
      
       logging.info('Connected to dbus, and switching over to gobject.MainLoop() (= event based)')
       mainloop = gobject.MainLoop()
