@@ -140,7 +140,7 @@ class DbusGoeChargerService:
        self._dbusservice['/Ac/Power'] = int(data['nrg'][11] * 0.01 * 1000)
        self._dbusservice['/Ac/Voltage'] = int(data['nrg'][0])
        self._dbusservice['/Current'] = int(data['amp'])
-       #self._dbusservice['/SetCurrent'] = 16  # static for now
+       self._dbusservice['/SetCurrent'] = int(data['amp'])
        self._dbusservice['/MaxCurrent'] = 16  # data['vehicle_current_a']
        self._dbusservice['/Ac/Energy/Forward'] = int(float(data['eto']) / 10.0)
        #self._dbusservice['/ChargingTime'] = data['session_s']
