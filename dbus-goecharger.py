@@ -221,6 +221,7 @@ def main():
           
           '/Ac/Voltage': {'initial': 0, 'textformat': _v},
           '/Current': {'initial': 0, 'textformat': _a},
+          '/SetCurrent': {'initial': 0, 'textformat': _a},
           '/MaxCurrent': {'initial': 0, 'textformat': _a},
           '/MCU/Temperature': {'initial': 0, 'textformat': _degC}
         }
