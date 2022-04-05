@@ -66,6 +66,9 @@ class DbusGoeChargerService:
 
     # last update
     self._lastUpdate = 0
+    
+    # charge start time (0 is not charging)
+    self._startChargeTime = 0
 
     # add _update function 'timer'
     gobject.timeout_add(250, self._update) # pause 250ms before the next request
@@ -131,8 +134,6 @@ class DbusGoeChargerService:
        #get data from go-eCharger
        data = self._getGoeChargerData()
        
-       config = self._getConfig()
-       
        #send data to DBus
        self._dbusservice['/Ac/L1/Power'] = int(data['nrg'][7] * 0.1 * 1000)
        self._dbusservice['/Ac/L2/Power'] = int(data['nrg'][8] * 0.1 * 1000)
@@ -143,7 +144,15 @@ class DbusGoeChargerService:
        self._dbusservice['/SetCurrent'] = int(data['amp'])
        self._dbusservice['/MaxCurrent'] = 16  # data['vehicle_current_a']
        self._dbusservice['/Ac/Energy/Forward'] = int(float(data['eto']) / 10.0)
-       #self._dbusservice['/ChargingTime'] = data['session_s']
+       
+       # update startChargeTime based on state change
+       startDetected = self._dbusservice['/Status'] != 2 and int(data['car']) == 2
+       stopDetected = self._dbusservice['/Status'] == 2 and int(data['car']) != 2
+       if startDetected:
+         self._startChargeTime = time.time()
+       elif stopDetected:
+         self._startChargeTime = 0
+       self._dbusservice['/ChargingTime'] = int(time.time() - self._startChargeTime) if self._startChargeTime else 0
 
        self._dbusservice['/Mode'] = 0  # Manual, no control
        self._dbusservice['/MCU/Temperature'] = int(data['tmp'])
