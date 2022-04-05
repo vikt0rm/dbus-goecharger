@@ -30,7 +30,8 @@ What is the script doing:
 Thats it 😄
 
 ### Restrictions
-This script until now only supports reading values from the go-eCharger. Writing values like "Max charging current" and "Charging current" is not possible. Control of go-eCharger by the victron system is not supported for now.
+This script until now supports reading values from the go-eCharger. Writing values is supported for  "Enable Charging", "Charging current" and "Max charging current". 
+Control of go-eCharger by the victron system in "Mode" "Auto" is not supported for now and changing the value will have no effect.
 
 
 ### Pictures
