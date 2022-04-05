@@ -102,6 +102,37 @@ class DbusGoeChargerService:
         raise ValueError("AccessType %s is not supported" % (config['DEFAULT']['AccessType']))
     
     return URL
+  
+  def _getGoeChargerMqttPayloadUrl(self, parameter, value):
+    config = self._getConfig()
+    accessType = config['DEFAULT']['AccessType']
+    
+    if accessType == 'OnPremise': 
+        URL = "http://%s/mqtt?payload=%s=%s" % (config['ONPREMISE']['Host'], parameter, value)
+    else:
+        raise ValueError("AccessType %s is not supported" % (config['DEFAULT']['AccessType']))
+    
+    return URL
+  
+  def _setGoeChargerValue(self, parameter, value):
+    URL = self._getGoeChargerMqttPayloadUrl(parameter, str(value))
+    request_data = requests.get(url = URL)
+    
+    # check for response
+    if not request_data:
+      raise ConnectionError("No response from go-eCharger - %s" % (URL))
+    
+    json_data = request_data.json()
+    
+    # check for Json
+    if not json_data:
+        raise ValueError("Converting response to JSON failed")
+    
+    if json_data[parameter] == str(value):
+      return True
+    else:
+      logging.warning("go-eCharger parameter %s not set to %s" % (parameter, str(value)))
+      return False
     
  
   def _getGoeChargerData(self):
@@ -141,9 +172,11 @@ class DbusGoeChargerService:
        self._dbusservice['/Ac/Power'] = int(data['nrg'][11] * 0.01 * 1000)
        self._dbusservice['/Ac/Voltage'] = int(data['nrg'][0])
        self._dbusservice['/Current'] = max(data['nrg'][4] * 0.1, data['nrg'][5] * 0.1, data['nrg'][6] * 0.1)
-       self._dbusservice['/SetCurrent'] = int(data['amp'])
-       self._dbusservice['/MaxCurrent'] = 16  # data['vehicle_current_a']
        self._dbusservice['/Ac/Energy/Forward'] = int(float(data['eto']) / 10.0)
+       
+       self._dbusservice['/StartStop'] = int(data['alw'])
+       self._dbusservice['/SetCurrent'] = int(data['amp'])
+       self._dbusservice['/MaxCurrent'] = int(data['ama']) 
        
        # update startChargeTime based on state change
        startDetected = self._dbusservice['/Status'] != 2 and int(data['car']) == 2
@@ -190,8 +223,16 @@ class DbusGoeChargerService:
  
   def _handlechangedvalue(self, path, value):
     logging.info("someone else updated %s to %s" % (path, value))
-    return True # accept the change
- 
+    
+    if path == '/SetCurrent':
+      return self._setGoeChargerValue('amp', value)
+    elif path == '/StartStop':
+      return self._setGoeChargerValue('alw', value)
+    elif path == '/MaxCurrent':
+      return self._setGoeChargerValue('ama', value)
+    else:
+      logging.info("mapping for evcharger path %s does not exist" % (path))
+      return False
 
 
 def main():
@@ -232,7 +273,8 @@ def main():
           '/Current': {'initial': 0, 'textformat': _a},
           '/SetCurrent': {'initial': 0, 'textformat': _a},
           '/MaxCurrent': {'initial': 0, 'textformat': _a},
-          '/MCU/Temperature': {'initial': 0, 'textformat': _degC}
+          '/MCU/Temperature': {'initial': 0, 'textformat': _degC},
+          '/StartStop': {'initial': 0}
         }
         )
      
