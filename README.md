@@ -75,4 +75,4 @@ Within the project there is a file `/data/dbus-goecharger/config.ini` - just cha
 
 ## Discussions on the web
 This module/repository has been posted on the following threads:
-- TODO
+- https://community.victronenergy.com/questions/128552/go-echarger-integration-in-venus-os.html
