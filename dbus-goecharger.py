@@ -189,7 +189,7 @@ class DbusGoeChargerService:
     return True
  
   def _handlechangedvalue(self, path, value):
-    logging.debug("someone else updated %s to %s" % (path, value))
+    logging.info("someone else updated %s to %s" % (path, value))
     return True # accept the change
  
 
@@ -198,7 +198,7 @@ def main():
   #configure logging
   logging.basicConfig(      format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
                             datefmt='%Y-%m-%d %H:%M:%S',
-                            level=logging.DEBUG,
+                            level=logging.INFO,
                             handlers=[
                                 logging.FileHandler("%s/current.log" % (os.path.dirname(os.path.realpath(__file__)))),
                                 logging.StreamHandler()
