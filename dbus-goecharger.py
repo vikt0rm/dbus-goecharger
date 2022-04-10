@@ -67,8 +67,8 @@ class DbusGoeChargerService:
     # last update
     self._lastUpdate = 0
     
-    # charge start time (0 is not charging)
-    self._startChargeTime = 0
+    # charging time in float
+    self._chargingTime = 0.0
 
     # add _update function 'timer'
     gobject.timeout_add(250, self._update) # pause 250ms before the next request
@@ -178,14 +178,13 @@ class DbusGoeChargerService:
        self._dbusservice['/SetCurrent'] = int(data['amp'])
        self._dbusservice['/MaxCurrent'] = int(data['ama']) 
        
-       # update startChargeTime based on state change
-       startDetected = self._dbusservice['/Status'] != 2 and int(data['car']) == 2
-       stopDetected = self._dbusservice['/Status'] == 2 and int(data['car']) != 2
-       if startDetected:
-         self._startChargeTime = time.time()
-       elif stopDetected:
-         self._startChargeTime = 0
-       self._dbusservice['/ChargingTime'] = int(time.time() - self._startChargeTime) if self._startChargeTime else 0
+       # update chargingTime, increment charge time only on active charging (2), reset when no car connected (1)
+       timeDelta = time.time() - self._lastUpdate
+       if int(data['car']) == 2:  # vehicle loads
+         self._chargingTime += timeDelta
+       elif int(data['car']) == 1:  # charging station ready, no vehicle
+         self._chargingTime = 0
+       self._dbusservice['/ChargingTime'] = int(self._chargingTime)
 
        self._dbusservice['/Mode'] = 0  # Manual, no control
        self._dbusservice['/MCU/Temperature'] = int(data['tmp'])
