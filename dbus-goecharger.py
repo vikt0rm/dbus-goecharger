@@ -51,7 +51,6 @@ class DbusGoeChargerService:
     self._dbusservice.add_path('/FirmwareVersion', int(data['fwv'].replace('.', '')))
     self._dbusservice.add_path('/HardwareVersion', 2)
     self._dbusservice.add_path('/Serial', data['sse'])
-    self._dbusservice.add_path('/ChargingTime', 0)  # not availabel on go-eCharger
     self._dbusservice.add_path('/Connected', 1)
     self._dbusservice.add_path('/UpdateIndex', 0)
     
@@ -252,11 +251,12 @@ def main():
       DBusGMainLoop(set_as_default=True)
      
       #formatting 
-      _kwh = lambda p, v: (str(round(v, 2)) + 'KWh')
+      _kwh = lambda p, v: (str(round(v, 2)) + 'kWh')
       _a = lambda p, v: (str(round(v, 1)) + 'A')
       _w = lambda p, v: (str(round(v, 1)) + 'W')
       _v = lambda p, v: (str(round(v, 1)) + 'V')
       _degC = lambda p, v: (str(v) + '°C')
+      _s = lambda p, v: (str(v) + 's')
      
       #start our main-service
       pvac_output = DbusGoeChargerService(
@@ -267,6 +267,7 @@ def main():
           '/Ac/L2/Power': {'initial': 0, 'textformat': _w},
           '/Ac/L3/Power': {'initial': 0, 'textformat': _w},
           '/Ac/Energy/Forward': {'initial': 0, 'textformat': _kwh},
+          '/ChargingTime': {'initial': 0, 'textformat': _s},
           
           '/Ac/Voltage': {'initial': 0, 'textformat': _v},
           '/Current': {'initial': 0, 'textformat': _a},
