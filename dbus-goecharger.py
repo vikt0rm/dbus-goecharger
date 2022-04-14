@@ -179,7 +179,7 @@ class DbusGoeChargerService:
        
        # update chargingTime, increment charge time only on active charging (2), reset when no car connected (1)
        timeDelta = time.time() - self._lastUpdate
-       if int(data['car']) == 2:  # vehicle loads
+       if int(data['car']) == 2 and self._lastUpdate > 0:  # vehicle loads
          self._chargingTime += timeDelta
        elif int(data['car']) == 1:  # charging station ready, no vehicle
          self._chargingTime = 0
