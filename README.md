@@ -15,7 +15,7 @@ Idea is inspired on @fabian-lauer and @trixing project linked below, many thanks
   - Connected to Wifi netowrk "A"
 - go-eCharger hardware version 2
   - Make sure in your go-eCharger app that api v1 is activated
-  - Connected to Wifi netowrk "A" with a known IP
+  - Connected to Wifi network "A" with a known IP
 
 ### Details / Process
 What is the script doing:
