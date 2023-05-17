@@ -24,7 +24,8 @@ class DbusGoeChargerService:
   def __init__(self, servicename, paths, productname='go-eCharger', connection='go-eCharger HTTP JSON service'):
     config = self._getConfig()
     deviceinstance = int(config['DEFAULT']['Deviceinstance'])
-    
+    hardwareVersion = int(config['DEFAULT']['HardwareVersion'])
+
     self._dbusservice = VeDbusService("{}.http_{:02d}".format(servicename, deviceinstance))
     self._paths = paths
     
@@ -49,7 +50,7 @@ class DbusGoeChargerService:
     self._dbusservice.add_path('/ProductName', productname)
     self._dbusservice.add_path('/CustomName', productname)    
     self._dbusservice.add_path('/FirmwareVersion', int(data['fwv'].replace('.', '')))
-    self._dbusservice.add_path('/HardwareVersion', 2)
+    self._dbusservice.add_path('/HardwareVersion', hardwareVersion)
     self._dbusservice.add_path('/Serial', data['sse'])
     self._dbusservice.add_path('/Connected', 1)
     self._dbusservice.add_path('/UpdateIndex', 0)
@@ -186,7 +187,13 @@ class DbusGoeChargerService:
        self._dbusservice['/ChargingTime'] = int(self._chargingTime)
 
        self._dbusservice['/Mode'] = 0  # Manual, no control
-       self._dbusservice['/MCU/Temperature'] = int(data['tmp'])
+       
+       config = self._getConfig()
+       hardwareVersion = int(config['DEFAULT']['HardwareVersion'])
+       if hardwareVersion == 3:
+         self._dbusservice['/MCU/Temperature'] = int(data['tma'][0])
+       else:
+         self._dbusservice['/MCU/Temperature'] = int(data['tmp'])
 
        # value 'car' 1: charging station ready, no vehicle 2: vehicle loads 3: Waiting for vehicle 4: Charge finished, vehicle still connected
        status = 0
