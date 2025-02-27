@@ -50,7 +50,12 @@ class DbusGoeChargerService:
     self._dbusservice.add_path('/ProductName', productname)
     self._dbusservice.add_path('/CustomName', productname)    
     if data:
-       self._dbusservice.add_path('/FirmwareVersion', int(data['fwv'].replace('.', '')))
+       fwv = data['fwv']
+       try:
+           fwv = int(data['fwv'].replace('.', ''))
+       except:
+           pass
+       self._dbusservice.add_path('/FirmwareVersion', fwv)
        self._dbusservice.add_path('/Serial', data['sse'])
     self._dbusservice.add_path('/HardwareVersion', hardwareVersion)
     self._dbusservice.add_path('/Connected', 1)
