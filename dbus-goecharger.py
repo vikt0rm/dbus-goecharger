@@ -228,6 +228,7 @@ class DbusGoeChargerService:
           self._dbusservice['/StartStop'] = int(data['alw'])
           self._dbusservice['/SetCurrent'] = int(data['amp'])
           self._dbusservice['/MaxCurrent'] = int(data['ama']) 
+
           # update chargingTime, increment charge time only on active charging (2), reset when no car connected (1)
           timeDelta = time.time() - self._lastUpdate
           if int(data['car']) == 2 and self._lastUpdate > 0:  # vehicle loads
@@ -239,7 +240,7 @@ class DbusGoeChargerService:
           self._dbusservice['/Mode'] = 0  # Manual, no control
           
           
-         if hardwareVersion >= 3:
+          if hardwareVersion >= 3:
             self._dbusservice['/MCU/Temperature'] = int(data['tma'][0] if data['tma'] is not None else 0)
           else:
             self._dbusservice['/MCU/Temperature'] = int(data['tmp'])
