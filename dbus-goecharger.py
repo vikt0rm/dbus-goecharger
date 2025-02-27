@@ -3,6 +3,7 @@
 # import normal packages
 import platform 
 import logging
+from logging.handlers import RotatingFileHandler
 import sys
 import os
 import sys
@@ -25,8 +26,8 @@ class DbusGoeChargerService:
     config = self._getConfig()
     deviceinstance = int(config['DEFAULT']['Deviceinstance'])
     hardwareVersion = int(config['DEFAULT']['HardwareVersion'])
+    acPosition = int(config['DEFAULT']['AcPosition'])
     pauseBetweenRequests = int(config['ONPREMISE']['PauseBetweenRequests']) # in ms
-    position = int(config['DEFAULT'].get('Position', '1'))
 
     if pauseBetweenRequests <= 20:
       raise ValueError("Pause between requests must be greater than 20")
@@ -34,7 +35,7 @@ class DbusGoeChargerService:
     if hardwareVersion < 4:
       raise ValueError("Minimum hardware version required is 4.")
 
-    self._dbusservice = VeDbusService("{}.http_{:02d}".format(servicename, deviceinstance))
+    self._dbusservice = VeDbusService("{}.http_{:02d}".format(servicename, deviceinstance), register=False)
     self._paths = paths
     
     logging.debug("%s /DeviceInstance = %d" % (servicename, deviceinstance))
@@ -45,7 +46,7 @@ class DbusGoeChargerService:
     ]
     
     #get data from go-eCharger
-    data = self._getGoeChargerData()
+    data = self._getGoeChargerData('sse,fwv')
 
     # Create the management objects, as specified in the ccgx dbus-api document
     self._dbusservice.add_path('/Mgmt/ProcessName', __file__)
@@ -58,12 +59,17 @@ class DbusGoeChargerService:
     self._dbusservice.add_path('/ProductName', productname)
     self._dbusservice.add_path('/CustomName', productname)    
     if data:
-       self._dbusservice.add_path('/FirmwareVersion', int(data['fwv'].replace('.', '')))
+       fwv = data['fwv']
+       try:
+           fwv = int(data['fwv'].replace('.', ''))
+       except:
+           pass
+       self._dbusservice.add_path('/FirmwareVersion', fwv)
        self._dbusservice.add_path('/Serial', data['sse'])
     self._dbusservice.add_path('/HardwareVersion', hardwareVersion)
     self._dbusservice.add_path('/Connected', 1)
     self._dbusservice.add_path('/UpdateIndex', 0)
-    self._dbusservice.add_path("/Position", position)
+    self._dbusservice.add_path('/Ac/Position', acPosition)
     
     # add paths without units
     for path in paths_wo_unit:
@@ -73,6 +79,9 @@ class DbusGoeChargerService:
     for path, settings in self._paths.items():
       self._dbusservice.add_path(
         path, settings['initial'], gettextcallback=settings['textformat'], writeable=True, onchangecallback=self._handlechangedvalue)
+
+    # register the service
+    self._dbusservice.register()
 
     # last update
     self._lastUpdate = 0
@@ -107,7 +116,7 @@ class DbusGoeChargerService:
     accessType = config['DEFAULT']['AccessType']
     
     if accessType == 'OnPremise': 
-        URL = "http://%s/api/status?filter=fwv,sse,nrg,wh,alw,amp,ama,car" % (config['ONPREMISE']['Host'])
+      URL = "http://%s/api/status" % (config['ONPREMISE']['Host'])
     else:
         raise ValueError("AccessType %s is not supported" % (config['DEFAULT']['AccessType']))
     
@@ -145,10 +154,10 @@ class DbusGoeChargerService:
       return False
     
  
-  def _getGoeChargerData(self):
-    URL = self._getGoeChargerStatusUrl()
+  def _getGoeChargerData(self, filter):
+    URL = "%s?filter=%s" % (self._getGoeChargerStatusUrl(), filter)
     try:
-       request_data = requests.get(url = URL, timeout=5)
+       request_data = requests.get(url = URL, timeout=1)
     except Exception:
        return None
     
@@ -176,7 +185,7 @@ class DbusGoeChargerService:
   def _update(self):   
     try:
        #get data from go-eCharger
-       data = self._getGoeChargerData()
+       data = self._getGoeChargerData('nrg,eto,wh,alw,amp,ama,car,tmp,tma')
        
        if data is not None:
 
@@ -199,14 +208,20 @@ class DbusGoeChargerService:
           14 = PF L3
           15 = PF N
           '''
+          config = self._getConfig()
+          hardwareVersion = int(config['DEFAULT']['HardwareVersion'])
 
           #send data to DBus
-          self._dbusservice['/Ac/L1/Power'] = int(data['nrg'][7])
-          self._dbusservice['/Ac/L2/Power'] = int(data['nrg'][8])
-          self._dbusservice['/Ac/L3/Power'] = int(data['nrg'][9])
-          self._dbusservice['/Ac/Power'] = int(data['nrg'][11])
-          self._dbusservice['/Current'] = max(data['nrg'][4], data['nrg'][5], data['nrg'][6])
-          self._dbusservice['/Ac/Energy/Forward'] = round(data['wh'] / 1000, 2)
+          self._dbusservice['/Ac/L1/Power'] = int(data['nrg'][7] * 0.1 * 1000)
+          self._dbusservice['/Ac/L2/Power'] = int(data['nrg'][8] * 0.1 * 1000)
+          self._dbusservice['/Ac/L3/Power'] = int(data['nrg'][9] * 0.1 * 1000)
+          self._dbusservice['/Ac/Power'] = int(data['nrg'][11] * 0.01 * 1000)
+          self._dbusservice['/Ac/Voltage'] = int(data['nrg'][0])
+          self._dbusservice['/Current'] = max(data['nrg'][4] * 0.1, data['nrg'][5] * 0.1, data['nrg'][6] * 0.1)
+          if hardwareVersion < 4
+            self._dbusservice['/Ac/Energy/Forward'] = int(float(data['eto']) / 1000.0)
+          else
+             self._dbusservice['/Ac/Energy/Forward'] = round(data['wh'] / 1000, 2)
           
           self._dbusservice['/StartStop'] = int(data['alw'])
           self._dbusservice['/SetCurrent'] = int(data['amp'])
@@ -220,8 +235,16 @@ class DbusGoeChargerService:
           self._dbusservice['/ChargingTime'] = int(self._chargingTime)
 
           self._dbusservice['/Mode'] = 0  # Manual, no control
+          
+          
+         if hardwareVersion >= 3:
+            self._dbusservice['/MCU/Temperature'] = int(data['tma'][0] if data['tma'] is not None else 0)
+          else:
+            self._dbusservice['/MCU/Temperature'] = int(data['tmp'])
 
-          # value 'car' 1: charging station ready, no vehicle 2: vehicle loads 3: Waiting for vehicle 4: Charge finished, vehicle still connected
+
+          # carState, null if internal error (Unknown/Error=0, Idle=1, Charging=2, WaitCar=3, Complete=4, Error=5)
+          # status 0=Disconnected; 1=Connected; 2=Charging; 3=Charged; 4=Waiting for sun; 5=Waiting for RFID; 6=Waiting for start; 7=Low SOC; 8=Ground fault; 9=Welded contacts; 10=CP Input shorted; 11=Residual current detected; 12=Under voltage detected; 13=Overvoltage detected; 14=Overheating detected
           status = 0
           if int(data['car']) == 1:
             status = 0
@@ -279,7 +302,7 @@ def main():
                             datefmt='%Y-%m-%d %H:%M:%S',
                             level=logging_level,
                             handlers=[
-                                logging.FileHandler("%s/current.log" % (os.path.dirname(os.path.realpath(__file__)))),
+                                RotatingFileHandler("%s/current.log" % (os.path.dirname(os.path.realpath(__file__))), maxBytes=10000),
                                 logging.StreamHandler()
                             ])
  
