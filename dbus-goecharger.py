@@ -26,6 +26,7 @@ class DbusGoeChargerService:
     config = self._getConfig()
     deviceinstance = int(config['DEFAULT']['Deviceinstance'])
     hardwareVersion = int(config['DEFAULT']['HardwareVersion'])
+    acPosition = int(config['DEFAULT']['AcPosition'])
 
     self._dbusservice = VeDbusService("{}.http_{:02d}".format(servicename, deviceinstance), register=False)
     self._paths = paths
@@ -61,6 +62,7 @@ class DbusGoeChargerService:
     self._dbusservice.add_path('/HardwareVersion', hardwareVersion)
     self._dbusservice.add_path('/Connected', 1)
     self._dbusservice.add_path('/UpdateIndex', 0)
+    self._dbusservice.add_path('/Ac/Position', acPosition)
     
     # add paths without units
     for path in paths_wo_unit:
