@@ -32,9 +32,6 @@ class DbusGoeChargerService:
     if pauseBetweenRequests <= 20:
       raise ValueError("Pause between requests must be greater than 20")
 
-    if hardwareVersion < 4:
-      raise ValueError("Minimum hardware version required is 4.")
-
     self._dbusservice = VeDbusService("{}.http_{:02d}".format(servicename, deviceinstance), register=False)
     self._paths = paths
     
@@ -118,7 +115,7 @@ class DbusGoeChargerService:
     if accessType == 'OnPremise': 
       URL = "http://%s/api/status" % (config['ONPREMISE']['Host'])
     else:
-        raise ValueError("AccessType %s is not supported" % (config['DEFAULT']['AccessType']))
+      raise ValueError("AccessType %s is not supported" % (config['DEFAULT']['AccessType']))
     
     return URL
   
@@ -212,16 +209,21 @@ class DbusGoeChargerService:
           hardwareVersion = int(config['DEFAULT']['HardwareVersion'])
 
           #send data to DBus
-          self._dbusservice['/Ac/L1/Power'] = int(data['nrg'][7] * 0.1 * 1000)
-          self._dbusservice['/Ac/L2/Power'] = int(data['nrg'][8] * 0.1 * 1000)
-          self._dbusservice['/Ac/L3/Power'] = int(data['nrg'][9] * 0.1 * 1000)
-          self._dbusservice['/Ac/Power'] = int(data['nrg'][11] * 0.01 * 1000)
           self._dbusservice['/Ac/Voltage'] = int(data['nrg'][0])
-          self._dbusservice['/Current'] = max(data['nrg'][4] * 0.1, data['nrg'][5] * 0.1, data['nrg'][6] * 0.1)
           if hardwareVersion < 4
+            self._dbusservice['/Ac/L1/Power'] = int(data['nrg'][7])
+            self._dbusservice['/Ac/L2/Power'] = int(data['nrg'][8])
+            self._dbusservice['/Ac/L3/Power'] = int(data['nrg'][9])
+            self._dbusservice['/Ac/Power'] = int(data['nrg'][11])
             self._dbusservice['/Ac/Energy/Forward'] = int(float(data['eto']) / 1000.0)
+            self._dbusservice['/Current'] = max(data['nrg'][4], data['nrg'][5], data['nrg'][6])
           else
-             self._dbusservice['/Ac/Energy/Forward'] = round(data['wh'] / 1000, 2)
+            self._dbusservice['/Ac/L1/Power'] = int(data['nrg'][7] * 0.1 * 1000)
+            self._dbusservice['/Ac/L2/Power'] = int(data['nrg'][8] * 0.1 * 1000)
+            self._dbusservice['/Ac/L3/Power'] = int(data['nrg'][9] * 0.1 * 1000)
+            self._dbusservice['/Ac/Power'] = int(data['nrg'][11] * 0.01 * 1000)
+            self._dbusservice['/Ac/Energy/Forward'] = round(data['wh'] / 1000, 2)
+            self._dbusservice['/Current'] = max(data['nrg'][4] * 0.1, data['nrg'][5] * 0.1, data['nrg'][6] * 0.1)
           
           self._dbusservice['/StartStop'] = int(data['alw'])
           self._dbusservice['/SetCurrent'] = int(data['amp'])
@@ -241,7 +243,6 @@ class DbusGoeChargerService:
             self._dbusservice['/MCU/Temperature'] = int(data['tma'][0] if data['tma'] is not None else 0)
           else:
             self._dbusservice['/MCU/Temperature'] = int(data['tmp'])
-
 
           # carState, null if internal error (Unknown/Error=0, Idle=1, Charging=2, WaitCar=3, Complete=4, Error=5)
           # status 0=Disconnected; 1=Connected; 2=Charging; 3=Charged; 4=Waiting for sun; 5=Waiting for RFID; 6=Waiting for start; 7=Low SOC; 8=Ground fault; 9=Welded contacts; 10=CP Input shorted; 11=Residual current detected; 12=Under voltage detected; 13=Overvoltage detected; 14=Overheating detected
