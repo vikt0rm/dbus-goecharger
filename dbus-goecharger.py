@@ -66,7 +66,7 @@ class DbusGoeChargerService:
     self._dbusservice.add_path('/HardwareVersion', hardwareVersion)
     self._dbusservice.add_path('/Connected', 1)
     self._dbusservice.add_path('/UpdateIndex', 0)
-    self._dbusservice.add_path('/Ac/Position', acPosition)
+    self._dbusservice.add_path('/Position', acPosition)
     
     # add paths without units
     for path in paths_wo_unit:
@@ -210,20 +210,15 @@ class DbusGoeChargerService:
 
           #send data to DBus
           self._dbusservice['/Ac/Voltage'] = int(data['nrg'][0])
-          if hardwareVersion < 4
-            self._dbusservice['/Ac/L1/Power'] = int(data['nrg'][7])
-            self._dbusservice['/Ac/L2/Power'] = int(data['nrg'][8])
-            self._dbusservice['/Ac/L3/Power'] = int(data['nrg'][9])
-            self._dbusservice['/Ac/Power'] = int(data['nrg'][11])
+          self._dbusservice['/Ac/L1/Power'] = int(data['nrg'][7])
+          self._dbusservice['/Ac/L2/Power'] = int(data['nrg'][8])
+          self._dbusservice['/Ac/L3/Power'] = int(data['nrg'][9])
+          self._dbusservice['/Ac/Power'] = int(data['nrg'][11])
+          self._dbusservice['/Current'] = max(data['nrg'][4], data['nrg'][5], data['nrg'][6])
+          if int(hardwareVersion) < 4: 
             self._dbusservice['/Ac/Energy/Forward'] = int(float(data['eto']) / 1000.0)
-            self._dbusservice['/Current'] = max(data['nrg'][4], data['nrg'][5], data['nrg'][6])
-          else
-            self._dbusservice['/Ac/L1/Power'] = int(data['nrg'][7] * 0.1 * 1000)
-            self._dbusservice['/Ac/L2/Power'] = int(data['nrg'][8] * 0.1 * 1000)
-            self._dbusservice['/Ac/L3/Power'] = int(data['nrg'][9] * 0.1 * 1000)
-            self._dbusservice['/Ac/Power'] = int(data['nrg'][11] * 0.01 * 1000)
+          else:
             self._dbusservice['/Ac/Energy/Forward'] = round(data['wh'] / 1000, 2)
-            self._dbusservice['/Current'] = max(data['nrg'][4] * 0.1, data['nrg'][5] * 0.1, data['nrg'][6] * 0.1)
           
           self._dbusservice['/StartStop'] = int(data['alw'])
           self._dbusservice['/SetCurrent'] = int(data['amp'])
