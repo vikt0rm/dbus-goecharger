@@ -239,11 +239,13 @@ class DbusGoeChargerService:
 
           self._dbusservice['/Mode'] = 0  # Manual, no control
           
-          
-          if hardwareVersion >= 3:
-            self._dbusservice['/MCU/Temperature'] = int(data['tma'][0] if data['tma'] is not None else 0)
-          else:
-            self._dbusservice['/MCU/Temperature'] = int(data['tmp'])
+          config = self._getConfig()
+          hardwareVersion = int(config['DEFAULT']['HardwareVersion'])
+          if '/MCU/Temperature' in self._dbusservice: # check if path exists, at some point it was removed
+             if hardwareVersion >= 3:
+                self._dbusservice['/MCU/Temperature'] = int(data['tma'][0] if data['tma'][0] else 0)
+             else:
+                self._dbusservice['/MCU/Temperature'] = int(data['tmp'])
 
           # carState, null if internal error (Unknown/Error=0, Idle=1, Charging=2, WaitCar=3, Complete=4, Error=5)
           # status 0=Disconnected; 1=Connected; 2=Charging; 3=Charged; 4=Waiting for sun; 5=Waiting for RFID; 6=Waiting for start; 7=Low SOC; 8=Ground fault; 9=Welded contacts; 10=CP Input shorted; 11=Residual current detected; 12=Under voltage detected; 13=Overvoltage detected; 14=Overheating detected
